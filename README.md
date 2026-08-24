@@ -1,8 +1,10 @@
 # KOReader Todo Tracker
 
-A lightweight to-do list plugin for [KOReader](https://koreader.rocks/). Manage tasks directly on your e-reader, with optional due dates, notes, and sub-tasks. This is an enhancement of [matthewashton-k](https://github.com/matthewashton-k/todo-koplugin)'s todo plugin for koreader.
+A lightweight to-do list plugin for [KOReader](https://koreader.rocks/). Manage tasks directly on your e-reader, with optional due dates, notes, and sub-tasks. 
 
-This project removes the Google Task's sync logic, as personally it's not something that I plan to make use of due to my anti-Google stance, if there's enough interest I'll look at reimplementing it.
+This is an enhancement of [matthewashton-k](https://github.com/matthewashton-k/todo-koplugin)'s todo plugin for koreader. This project removes the Google Task's sync logic as it requires a proper re-implementation, if there's enough interest I'll look to re-add, feel free to submit a pull request!
+
+![Overview](Overview.png)
 
 ## Features
 
