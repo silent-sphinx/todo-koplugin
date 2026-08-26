@@ -1,6 +1,7 @@
 local UiManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local CheckButton = require("ui/widget/checkbutton")
+local ConfirmBox = require("ui/widget/confirmbox")
 local FrameContainer = require("ui/widget/container/framecontainer")
 local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
@@ -8,6 +9,7 @@ local HorizontalSpan = require("ui/widget/horizontalspan")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
 local TextWidget = require("ui/widget/textwidget")
+local InfoMessage = require("ui/widget/infomessage")
 local Button = require("ui/widget/button")
 local Screen = require("device").screen
 local Font = require("ui/font")
@@ -18,11 +20,18 @@ local logger = require("logger")
 local _ = require("gettext")
 local DataStorage = require("datastorage")
 local LuaSettings = require("luasettings")
-local IconButton = require("ui/widget/iconbutton")
 local LineWidget = require("ui/widget/linewidget")
 local LeftContainer = require("ui/widget/container/leftcontainer")
 local RightContainer = require("ui/widget/container/rightcontainer")
+local CenterContainer = require("ui/widget/container/centercontainer")
 local OverlapGroup = require("ui/widget/overlapgroup")
+
+local HeaderActionButton = Button:extend{}
+
+function HeaderActionButton:init()
+    Button.init(self)
+    self.label_widget.fgcolor = Blitbuffer.COLOR_WHITE
+end
 
 local TodoApplication = WidgetContainer:extend({
     name = "todo",
@@ -40,13 +49,14 @@ function TodoApplication:init()
 end
 
 function TodoApplication:addExitButton()
-    local star_width = Screen:scaleBySize(25)
-    local ellipsis_button_width = Screen:scaleBySize(34)
-    return IconButton:new{
-        icon = "exit",
-        width = star_width,
-        height = star_width,
-        padding = math.floor((ellipsis_button_width - star_width)/2) + Size.padding.button,
+    return Button:new{
+        text = "×",
+        width = Screen:scaleBySize(40),
+        height = Screen:scaleBySize(40),
+        padding = 0,
+        bordersize = 0,
+        text_font_size = 40,
+        text_font_bold = false,
         callback = function()
             self:remover()
         end,
@@ -69,12 +79,10 @@ function TodoApplication:loadSaved()
     self.settings = LuaSettings:open(self.settings_file)
     local saved_todos = self.settings:readSetting("todos")
 
-    if saved_todos and #saved_todos > 0 then
+    if saved_todos then
         self.todos = saved_todos
     else
-        self.todos = {
-            { text = "Sample Todo", checked = false },
-        }
+        self.todos = {}
     end
 end
 
@@ -107,11 +115,32 @@ function TodoApplication:repaintCurrentFrame()
     UiManager:setDirty(self.current_frame, "ui")
 end
 
+function TodoApplication:confirmRemoveCompleted(message, callback)
+    UiManager:show(ConfirmBox:new{
+        text = message,
+        ok_text = _("Remove"),
+        ok_callback = callback,
+    })
+end
+
 function TodoApplication:showTaskDetails(index)
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
     local margin_span = HorizontalSpan:new{ width = Size.padding.large }
     local todo = self.todos[index]
+    local details_width = screen_width - Screen:scaleBySize(60)
+
+    local function detailsLabel(text)
+        local label = TextWidget:new{
+            text = text,
+            face = Font:getFace("cfont"),
+            bold = true,
+        }
+        return LeftContainer:new{
+            dimen = Geom:new{ w = details_width, h = label:getSize().h },
+            label,
+        }
+    end
 
     if self.current_frame then
         local old_frame = self.current_frame
@@ -157,56 +186,70 @@ function TodoApplication:showTaskDetails(index)
     end
 
     local details_list = VerticalGroup:new{
-        align = "left",
+        align = "center",
         
-        TextWidget:new{ text = _("Task Name:"), face = Font:getFace("cfont"), bold = true },
+        detailsLabel(_("Task Name:")),
         Button:new{
             text = (todo.text and todo.text ~= "") and todo.text or _("[Tap to enter name]"),
-            width = screen_width - Screen:scaleBySize(60),
+            width = details_width,
             bordersize = 1,
             padding = Screen:scaleBySize(10),
+            text_font_face = "smallinfofont",
+            text_font_size = 18,
+            text_font_bold = false,
             callback = function() editField(_("Edit Name"), "text", _("Enter task name")) end,
         },
         VerticalSpan:new{width = Size.padding.large},
 
-        TextWidget:new{ text = _("Due Date:"), face = Font:getFace("cfont"), bold = true },
+        detailsLabel(_("Due Date:")),
         Button:new{
             text = (todo.due_date and todo.due_date ~= "") and todo.due_date or _("[Tap to enter due date]"),
-            width = screen_width - Screen:scaleBySize(60),
+            width = details_width,
             bordersize = 1,
             padding = Screen:scaleBySize(10),
+            text_font_face = "smallinfofont",
+            text_font_size = 18,
+            text_font_bold = false,
             callback = function() editField(_("Edit Due Date"), "due_date", _("e.g. DD/MM/YYYY")) end,
         },
         VerticalSpan:new{width = Size.padding.large},
 
-        TextWidget:new{ text = _("Description / Notes:"), face = Font:getFace("cfont"), bold = true },
+        detailsLabel(_("Description / Notes:")),
         Button:new{
             text = (todo.description and todo.description ~= "") and todo.description or _("[Tap to enter description]"),
-            width = screen_width - Screen:scaleBySize(60),
+            width = details_width,
             bordersize = 1,
             padding = Screen:scaleBySize(10),
+            text_font_face = "smallinfofont",
+            text_font_size = 18,
+            text_font_bold = false,
             callback = function() editField(_("Edit Description"), "description", _("Enter task description/notes")) end,
         },
     }
 
     -- Sub-tasks Header
     table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
-    table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = screen_width - Screen:scaleBySize(60), h = 2 } })
+    table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = 2 } })
     table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
-    table.insert(details_list, TextWidget:new{ text = _("Sub-tasks:"), face = Font:getFace("cfont"), bold = true })
+    table.insert(details_list, detailsLabel(_("Sub-tasks:")))
     
     if not todo.subtasks then todo.subtasks = {} end
 
+    local has_completed_subtasks = false
     for sub_index, subtask in ipairs(todo.subtasks) do
+        has_completed_subtasks = has_completed_subtasks or subtask.checked
         table.insert(details_list, self:createSubtaskItem(index, sub_index))
-        table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = screen_width - Screen:scaleBySize(60), h = 1 } })
+        table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = 1 } })
     end
 
     table.insert(details_list, Button:new{
         text = _("+ Add Sub-task"),
-        width = screen_width - Screen:scaleBySize(60),
+        width = details_width,
         bordersize = 1,
         padding = Screen:scaleBySize(10),
+        text_font_face = "smallinfofont",
+        text_font_size = 18,
+        text_font_bold = false,
         callback = function()
             local InputDialog = require("ui/widget/inputdialog")
             local input_dialog
@@ -245,16 +288,37 @@ function TodoApplication:showTaskDetails(index)
     table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
     table.insert(details_list, Button:new{
         text = _("Remove completed sub-tasks"),
+        enabled = has_completed_subtasks,
+        text_font_face = "smallinfofont",
+        text_font_size = 18,
+        text_font_bold = false,
         callback = function()
-            local new_subtasks = {}
-            for _, subtask in ipairs(todo.subtasks) do
-                if not subtask.checked then
-                    table.insert(new_subtasks, subtask)
+            self:confirmRemoveCompleted(_("Remove all completed sub-tasks?"), function()
+                local new_subtasks = {}
+                for _, subtask in ipairs(todo.subtasks) do
+                    if not subtask.checked then
+                        table.insert(new_subtasks, subtask)
+                    end
                 end
-            end
-            self.todos[index].subtasks = new_subtasks
-            self:saveTodos()
-            self:showTaskDetails(index)
+                self.todos[index].subtasks = new_subtasks
+                self:saveTodos()
+                self:showTaskDetails(index)
+            end)
+        end,
+    })
+
+    table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
+    table.insert(details_list, Button:new{
+        text = _("Remove this task"),
+        text_font_face = "smallinfofont",
+        text_font_size = 18,
+        text_font_bold = false,
+        callback = function()
+            self:confirmRemoveCompleted(_("Remove this task?"), function()
+                table.remove(self.todos, index)
+                self:saveTodos()
+                self:refreshUI()
+            end)
         end,
     })
 
@@ -263,7 +327,13 @@ function TodoApplication:showTaskDetails(index)
             w = screen_width - Size.padding.large,
             h = screen_height - Screen:scaleBySize(52) - Size.padding.large
         },
-        details_list
+        CenterContainer:new{
+            dimen = Geom:new{
+                w = screen_width - Size.padding.large,
+                h = details_list:getSize().h,
+            },
+            details_list,
+        },
     }
 
     self.current_frame = OverlapGroup:new{
@@ -290,21 +360,26 @@ function TodoApplication:showTaskDetails(index)
                                 self:refreshUI()
                             end
                         },
-                        margin_span,
-                        TextWidget:new{
-                            text = _("Task Details"),
-                            face = Font:getFace("cfont"),
-                            bold = true,
-                        },
                     }
-                }
+                },
+                CenterContainer:new{
+                    dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
+                    TextWidget:new{
+                        text = _("Task Details"),
+                        face = Font:getFace("cfont"),
+                        bold = true,
+                    },
+                },
             },
             LineWidget:new{ dimen = Geom:new{ w = screen_width - Screen:scaleBySize(20), h = 2 } },
             VerticalSpan:new{width = Size.padding.large},
             
-            HorizontalGroup:new{
-                margin_span,
-                details_scroll
+            CenterContainer:new{
+                dimen = Geom:new{
+                    w = screen_width,
+                    h = details_scroll.dimen.h,
+                },
+                details_scroll,
             },
         }
     }
@@ -314,6 +389,8 @@ function TodoApplication:showTaskDetails(index)
 end
 
 function TodoApplication:createTodoItem(todo, index)
+    local checkbox_width = Screen:scaleBySize(30)
+    local row_width = Screen:getWidth() - Size.padding.large - checkbox_width - Screen:scaleBySize(10)
     local check_button
     check_button = CheckButton:new{
         checked = todo.checked,
@@ -322,30 +399,26 @@ function TodoApplication:createTodoItem(todo, index)
             self:saveTodos()
             self:repaintCurrentFrame()
         end,
-        width = Screen:scaleBySize(30),
+        width = checkbox_width,
     }
 
-    local text_widget = TextWidget:new{
+    local task_button = Button:new{
         text = todo.text,
-        face = Font:getFace("smallinfofont"),
-    }
-
-    local edit_button = Button:new{
-        text = _("Edit"),
-        padding = Screen:scaleBySize(5),
+        width = row_width,
+        height = Screen:scaleBySize(42),
+        align = "left",
         bordersize = 0,
-        callback = function()
-            self:showTaskDetails(index)
-        end,
+        padding = Screen:scaleBySize(5),
+        text_font_face = "smallinfofont",
+        text_font_bold = false,
+        callback = function() self:showTaskDetails(index) end,
     }
 
     return HorizontalGroup:new{
         HorizontalSpan:new{ width = Size.padding.large },
         check_button,
         HorizontalSpan:new{ width = Screen:scaleBySize(10) },
-        text_widget,
-        HorizontalSpan:new{ width = Screen:scaleBySize(10) },
-        edit_button,
+        task_button,
     }
 end
 
@@ -371,6 +444,9 @@ function TodoApplication:createSubtaskItem(main_index, sub_index)
         text = _("Edit"),
         padding = Screen:scaleBySize(5),
         bordersize = 0,
+        text_font_face = "smallinfofont",
+        text_font_size = 18,
+        text_font_bold = false,
         callback = function()
             local InputDialog = require("ui/widget/inputdialog")
             local input_dialog
@@ -430,6 +506,7 @@ function TodoApplication:showItems()
     local margin_span = HorizontalSpan:new{ width = Size.padding.large }
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
+    local add_button_width = math.min(Screen:scaleBySize(175), math.floor(screen_width * 0.40))
     
     if self.current_frame then
         local old_frame = self.current_frame
@@ -451,19 +528,62 @@ function TodoApplication:showItems()
         table.insert(todo_list, self:createTodoItem(todo, index))
     end
 
+    if #self.todos == 0 then
+        local empty_state = VerticalGroup:new{
+            align = "center",
+            TextWidget:new{
+                text = _("No tasks yet"),
+                face = Font:getFace("cfont"),
+                bold = true,
+            },
+            VerticalSpan:new{ width = Size.padding.large },
+            TextWidget:new{
+                text = _("Tap + to add one."),
+                face = Font:getFace("smallinfofont"),
+            },
+        }
+        table.insert(todo_list, VerticalSpan:new{ width = Screen:scaleBySize(24) })
+        table.insert(todo_list, CenterContainer:new{
+            dimen = Geom:new{ w = screen_width, h = empty_state:getSize().h },
+            empty_state,
+        })
+    end
+
     -- Add delete button
-    local remove_completed_button = Button:new{
+    local remove_completed_button = HeaderActionButton:new{
         text = _("Remove completed"),
+        height = Screen:scaleBySize(28),
+        padding = Screen:scaleBySize(6),
+        bordersize = 0,
+        background = Blitbuffer.COLOR_BLACK,
+        radius = 0,
+        text_font_size = 18,
+        text_font_bold = false,
         callback = function()
-            local new_todos = {}
+            local has_completed = false
             for _, todo in ipairs(self.todos) do
-                if not todo.checked then
-                    table.insert(new_todos, todo)
+                if todo.checked then
+                    has_completed = true
+                    break
                 end
             end
-            self.todos = new_todos
-            self:saveTodos()
-            self:refreshUI()
+            if not has_completed then
+                UiManager:show(InfoMessage:new{
+                    text = _("No completed tasks to remove."),
+                })
+                return
+            end
+            self:confirmRemoveCompleted(_("Remove all completed tasks?"), function()
+                local new_todos = {}
+                for _, todo in ipairs(self.todos) do
+                    if not todo.checked then
+                        table.insert(new_todos, todo)
+                    end
+                end
+                self.todos = new_todos
+                self:saveTodos()
+                self:refreshUI()
+            end)
         end,
     }
 
@@ -472,7 +592,7 @@ function TodoApplication:showItems()
     local todo_scroll = ScrollableContainer:new{
         dimen = Geom:new{
             w = screen_width,
-            h = screen_height - Screen:scaleBySize(110)
+            h = screen_height - Screen:scaleBySize(127)
         },
         todo_list
     }
@@ -504,11 +624,16 @@ function TodoApplication:showItems()
                 RightContainer:new{
                     dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
                     HorizontalGroup:new{
-                        IconButton:new{
-                            icon = "plus",
-                            width = Screen:scaleBySize(30),
+                        HeaderActionButton:new{
+                            text = _("+ Add New Task"),
+                            width = add_button_width,
                             height = Screen:scaleBySize(30),
-                            padding = Screen:scaleBySize(5),
+                            padding = Screen:scaleBySize(4),
+                            bordersize = 0,
+                            background = Blitbuffer.COLOR_BLACK,
+                            radius = 0,
+                            text_font_size = 18,
+                            text_font_bold = false,
                             callback = function()
                                 local InputDialog = require("ui/widget/inputdialog")
                                 local input_dialog
@@ -561,10 +686,12 @@ function TodoApplication:showItems()
             
             VerticalSpan:new{width = Size.padding.large},
             LineWidget:new{ dimen = Geom:new{ w = screen_width - Screen:scaleBySize(20), h = 1 } },
+            VerticalSpan:new{width = Screen:scaleBySize(8)},
             HorizontalGroup:new{
                 margin_span,
                 remove_completed_button,
-            }
+            },
+            VerticalSpan:new{width = Screen:scaleBySize(12)},
         }
     }
     self.current_frame.cropping_widget = todo_scroll
