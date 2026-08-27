@@ -390,7 +390,8 @@ end
 
 function TodoApplication:createTodoItem(todo, index)
     local checkbox_width = Screen:scaleBySize(30)
-    local row_width = Screen:getWidth() - Size.padding.large - checkbox_width - Screen:scaleBySize(10)
+    local content_margin = Size.padding.large + Screen:scaleBySize(12)
+    local row_width = Screen:getWidth() - ScrollableContainer:getScrollbarWidth() - content_margin - checkbox_width - Screen:scaleBySize(10)
     local check_button
     check_button = CheckButton:new{
         checked = todo.checked,
@@ -415,7 +416,7 @@ function TodoApplication:createTodoItem(todo, index)
     }
 
     return HorizontalGroup:new{
-        HorizontalSpan:new{ width = Size.padding.large },
+        HorizontalSpan:new{ width = content_margin },
         check_button,
         HorizontalSpan:new{ width = Screen:scaleBySize(10) },
         task_button,
@@ -506,6 +507,7 @@ function TodoApplication:showItems()
     local margin_span = HorizontalSpan:new{ width = Size.padding.large }
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
+    local scroll_content_width = screen_width - ScrollableContainer:getScrollbarWidth()
     local add_button_width = math.min(Screen:scaleBySize(175), math.floor(screen_width * 0.40))
     
     if self.current_frame then
@@ -522,7 +524,7 @@ function TodoApplication:showItems()
     for index, todo in ipairs(self.todos) do
         if index > 1 then
             table.insert(todo_list, LineWidget:new{
-                dimen = Geom:new{ w = screen_width - Screen:scaleBySize(40), h = 1 }
+                dimen = Geom:new{ w = scroll_content_width - Screen:scaleBySize(40), h = 1 }
             })
         end
         table.insert(todo_list, self:createTodoItem(todo, index))
