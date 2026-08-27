@@ -252,9 +252,11 @@ function TodoApplication:showTaskDetails(index)
     for sub_index, subtask in ipairs(todo.subtasks) do
         has_completed_subtasks = has_completed_subtasks or subtask.checked
         table.insert(details_list, self:createSubtaskItem(index, sub_index))
+        table.insert(details_list, VerticalSpan:new{width = Screen:scaleBySize(6)})
         table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = 1 } })
     end
 
+    table.insert(details_list, VerticalSpan:new{width = Screen:scaleBySize(12)})
     table.insert(details_list, Button:new{
         text = _("+ Add Sub-task"),
         width = details_width,
@@ -298,10 +300,8 @@ function TodoApplication:showTaskDetails(index)
         end,
     })
 
-    table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
-    table.insert(details_list, Button:new{
+    local remove_completed_subtasks_button = Button:new{
         text = _("Remove completed sub-tasks"),
-        enabled = has_completed_subtasks,
         text_font_face = "smallinfofont",
         text_font_size = 18,
         text_font_bold = false,
@@ -318,11 +318,19 @@ function TodoApplication:showTaskDetails(index)
                 self:showTaskDetails(index)
             end)
         end,
-    })
+    }
+    if has_completed_subtasks then
+        table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
+        table.insert(details_list, remove_completed_subtasks_button)
+    end
 
-    table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
-    table.insert(details_list, Button:new{
+    local remove_task_button = HeaderActionButton:new{
         text = _("Remove this task"),
+        height = Screen:scaleBySize(28),
+        padding = Screen:scaleBySize(6),
+        bordersize = 0,
+        background = Blitbuffer.COLOR_BLACK,
+        radius = 0,
         text_font_face = "smallinfofont",
         text_font_size = 18,
         text_font_bold = false,
@@ -333,7 +341,7 @@ function TodoApplication:showTaskDetails(index)
                 self:refreshUI()
             end)
         end,
-    })
+    }
 
     local details_scroll = ScrollableContainer:new{
         dimen = Geom:new{
@@ -365,10 +373,15 @@ function TodoApplication:showTaskDetails(index)
                     dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
                     HorizontalGroup:new{
                         margin_span,
-                        Button:new{
+                        HeaderActionButton:new{
                             text = _("< Back"),
-                            padding = Screen:scaleBySize(5),
+                            height = Screen:scaleBySize(28),
+                            padding = Screen:scaleBySize(6),
                             bordersize = 0,
+                            background = Blitbuffer.COLOR_BLACK,
+                            radius = 0,
+                            text_font_size = 18,
+                            text_font_bold = false,
                             callback = function()
                                 self:refreshUI()
                             end
@@ -381,6 +394,13 @@ function TodoApplication:showTaskDetails(index)
                         text = _("Task Details"),
                         face = Font:getFace("cfont"),
                         bold = true,
+                    },
+                },
+                RightContainer:new{
+                    dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
+                    HorizontalGroup:new{
+                        remove_task_button,
+                        margin_span,
                     },
                 },
             },
@@ -438,13 +458,15 @@ end
 
 function TodoApplication:createSubtaskItem(main_index, sub_index)
     local subtask = self.todos[main_index].subtasks[sub_index]
+    local details_width = Screen:getWidth() - Screen:scaleBySize(60)
+    local edit_button_width = Screen:scaleBySize(28)
     local check_button
     check_button = CheckButton:new{
         checked = subtask.checked,
         callback = function()
             self.todos[main_index].subtasks[sub_index].checked = check_button.checked
             self:saveTodos()
-            self:repaintCurrentFrame()
+            self:showTaskDetails(main_index)
         end,
         width = Screen:scaleBySize(30),
     }
@@ -452,15 +474,17 @@ function TodoApplication:createSubtaskItem(main_index, sub_index)
     local text_widget = TextWidget:new{
         text = subtask.text,
         face = Font:getFace("smallinfofont"),
+        max_width = details_width - Size.padding.large - Screen:scaleBySize(40) - edit_button_width,
     }
 
     local edit_button = Button:new{
-        text = _("Edit"),
-        padding = Screen:scaleBySize(5),
+        icon = "edit",
+        icon_width = Screen:scaleBySize(24),
+        icon_height = Screen:scaleBySize(24),
+        width = edit_button_width,
+        height = edit_button_width,
+        padding = 0,
         bordersize = 0,
-        text_font_face = "smallinfofont",
-        text_font_size = 18,
-        text_font_bold = false,
         callback = function()
             local InputDialog = require("ui/widget/inputdialog")
             local input_dialog
@@ -496,13 +520,21 @@ function TodoApplication:createSubtaskItem(main_index, sub_index)
         end,
     }
 
-    return HorizontalGroup:new{
-        HorizontalSpan:new{ width = Size.padding.large },
-        check_button,
-        HorizontalSpan:new{ width = Screen:scaleBySize(10) },
-        text_widget,
-        HorizontalSpan:new{ width = Screen:scaleBySize(10) },
-        edit_button,
+    return OverlapGroup:new{
+        dimen = Geom:new{ w = details_width, h = edit_button_width },
+        LeftContainer:new{
+            dimen = Geom:new{ w = details_width - edit_button_width, h = edit_button_width },
+            HorizontalGroup:new{
+                HorizontalSpan:new{ width = Size.padding.large },
+                check_button,
+                HorizontalSpan:new{ width = Screen:scaleBySize(10) },
+                text_widget,
+            },
+        },
+        RightContainer:new{
+            dimen = Geom:new{ w = details_width, h = edit_button_width },
+            edit_button,
+        },
     }
 end
 
