@@ -26,7 +26,7 @@ This is an enhancement of [matthewashton-k](https://github.com/matthewashton-k/t
 3. Confirm that the installed directory contains `_meta.lua` and `main.lua`.
 4. Start KOReader. Select **Todo App** from the main menu.
 
-On first launch, the plugin creates a sample task. Your tasks are saved by KOReader in its settings directory as `todos.lua`.
+Your tasks are saved by KOReader in its settings directory as `todos.lua`.
 
 
 ## Compatibility
