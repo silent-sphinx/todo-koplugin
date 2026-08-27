@@ -201,6 +201,7 @@ function TodoApplication:showTaskDetails(index)
         },
         VerticalSpan:new{width = Size.padding.large},
 
+        VerticalSpan:new{width = Screen:scaleBySize(4)},
         detailsLabel(_("Category:")),
         Button:new{
             text = (todo.category and todo.category ~= "") and todo.category or _("[Tap to set category]"),
@@ -214,6 +215,7 @@ function TodoApplication:showTaskDetails(index)
         },
         VerticalSpan:new{width = Size.padding.large},
 
+        VerticalSpan:new{width = Screen:scaleBySize(4)},
         detailsLabel(_("Due Date:")),
         Button:new{
             text = (todo.due_date and todo.due_date ~= "") and todo.due_date or _("[Tap to enter due date]"),
@@ -227,6 +229,7 @@ function TodoApplication:showTaskDetails(index)
         },
         VerticalSpan:new{width = Size.padding.large},
 
+        VerticalSpan:new{width = Screen:scaleBySize(4)},
         detailsLabel(_("Description / Notes:")),
         Button:new{
             text = (todo.description and todo.description ~= "") and todo.description or _("[Tap to enter description]"),
@@ -519,11 +522,12 @@ function TodoApplication:createSubtaskItem(main_index, sub_index)
             input_dialog:onShowKeyboard()
         end,
     }
+    local row_height = math.max(check_button:getSize().h, edit_button:getSize().h)
 
     return OverlapGroup:new{
-        dimen = Geom:new{ w = details_width, h = edit_button_width },
+        dimen = Geom:new{ w = details_width, h = row_height },
         LeftContainer:new{
-            dimen = Geom:new{ w = details_width - edit_button_width, h = edit_button_width },
+            dimen = Geom:new{ w = details_width - edit_button_width, h = row_height },
             HorizontalGroup:new{
                 HorizontalSpan:new{ width = Size.padding.large },
                 check_button,
@@ -532,7 +536,7 @@ function TodoApplication:createSubtaskItem(main_index, sub_index)
             },
         },
         RightContainer:new{
-            dimen = Geom:new{ w = details_width, h = edit_button_width },
+            dimen = Geom:new{ w = details_width, h = row_height },
             edit_button,
         },
     }
