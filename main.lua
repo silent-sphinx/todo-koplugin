@@ -201,6 +201,19 @@ function TodoApplication:showTaskDetails(index)
         },
         VerticalSpan:new{width = Size.padding.large},
 
+        detailsLabel(_("Category:")),
+        Button:new{
+            text = (todo.category and todo.category ~= "") and todo.category or _("[Tap to set category]"),
+            width = details_width,
+            bordersize = 1,
+            padding = Screen:scaleBySize(10),
+            text_font_face = "smallinfofont",
+            text_font_size = 18,
+            text_font_bold = false,
+            callback = function() editField(_("Edit Category"), "category", _("Enter category or group name")) end,
+        },
+        VerticalSpan:new{width = Size.padding.large},
+
         detailsLabel(_("Due Date:")),
         Button:new{
             text = (todo.due_date and todo.due_date ~= "") and todo.due_date or _("[Tap to enter due date]"),
@@ -508,6 +521,7 @@ function TodoApplication:showItems()
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
     local scroll_content_width = screen_width - ScrollableContainer:getScrollbarWidth()
+    local content_margin = Size.padding.large + Screen:scaleBySize(12)
     local add_button_width = math.min(Screen:scaleBySize(175), math.floor(screen_width * 0.40))
     
     if self.current_frame then
@@ -521,13 +535,43 @@ function TodoApplication:showItems()
         align = "left",
         id = "todo_list",
     }
+    local category_order = {}
+    local category_tasks = {}
     for index, todo in ipairs(self.todos) do
-        if index > 1 then
-            table.insert(todo_list, LineWidget:new{
-                dimen = Geom:new{ w = scroll_content_width - Screen:scaleBySize(40), h = 1 }
-            })
+        local category = (todo.category and todo.category ~= "") and todo.category or _("Uncategorized")
+        if not category_tasks[category] then
+            category_tasks[category] = {}
+            table.insert(category_order, category)
         end
-        table.insert(todo_list, self:createTodoItem(todo, index))
+        table.insert(category_tasks[category], { todo = todo, index = index })
+    end
+
+    for _, category in ipairs(category_order) do
+        table.insert(todo_list, HorizontalGroup:new{
+            HorizontalSpan:new{ width = content_margin },
+            TextWidget:new{
+                text = category,
+                face = Font:getFace("cfont"),
+                bold = true,
+            },
+        })
+        table.insert(todo_list, HorizontalGroup:new{
+            HorizontalSpan:new{ width = content_margin },
+            LineWidget:new{
+                dimen = Geom:new{ w = scroll_content_width - content_margin - Screen:scaleBySize(40), h = 1 }
+            },
+        })
+        for task_index, task in ipairs(category_tasks[category]) do
+            if task_index > 1 then
+                table.insert(todo_list, HorizontalGroup:new{
+                    HorizontalSpan:new{ width = content_margin },
+                    LineWidget:new{
+                        dimen = Geom:new{ w = scroll_content_width - content_margin - Screen:scaleBySize(40), h = 1 }
+                    },
+                })
+            end
+            table.insert(todo_list, self:createTodoItem(task.todo, task.index))
+        end
     end
 
     if #self.todos == 0 then
@@ -661,7 +705,7 @@ function TodoApplication:showItems()
                                                     if new_text and new_text ~= "" then
                                                         table.insert(self.todos, { text = new_text, checked = false })
                                                         self:saveTodos()
-                                                        self:refreshUI()
+                                                        self:showTaskDetails(#self.todos)
                                                     else
                                                         logger.warn("Empty todo not added.")
                                                     end
