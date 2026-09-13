@@ -198,6 +198,82 @@ function TodoApplication:countSubtaskProgress(todo)
     return done, total
 end
 
+function TodoApplication:parseDueDate(value)
+    if not value or value == "" then
+        return nil
+    end
+    local year, month, day = value:match("^(%d%d%d%d)%-(%d%d?)%-(%d%d?)$")
+    if not year then
+        year, month, day = value:match("^(%d%d%d%d)/(%d%d?)/(%d%d?)$")
+    end
+    if not year then
+        day, month, year = value:match("^(%d%d?)/(%d%d?)/(%d%d%d%d)$")
+    end
+    if not year then
+        day, month, year = value:match("^(%d%d?)%-(%d%d?)%-(%d%d%d%d)$")
+    end
+    year, month, day = tonumber(year), tonumber(month), tonumber(day)
+    if not year or not month or not day then
+        return nil
+    end
+    if month < 1 or month > 12 or day < 1 or day > 31 then
+        return nil
+    end
+    return { year = year, month = month, day = day }
+end
+
+function TodoApplication:formatDueDate(value)
+    local date = self:parseDueDate(value)
+    if not date then
+        return value
+    end
+    local ok, timestamp = pcall(os.time, {
+        year = date.year,
+        month = date.month,
+        day = date.day,
+        hour = 12,
+    })
+    if not ok or not timestamp then
+        return string.format("%04d-%02d-%02d", date.year, date.month, date.day)
+    end
+    return os.date("%d %b %Y", timestamp)
+end
+
+function TodoApplication:editDueDate(index)
+    local DateTimeWidget = require("ui/widget/datetimewidget")
+    local todo = self.todos[index]
+    local parsed = self:parseDueDate(todo.due_date)
+    local now = os.date("*t")
+    local year = parsed and parsed.year or now.year
+    local month = parsed and parsed.month or now.month
+    local day = parsed and parsed.day or now.day
+
+    local date_widget
+    date_widget = DateTimeWidget:new{
+        year = year,
+        month = month,
+        day = day,
+        year_min = math.min(now.year - 5, year),
+        year_max = math.max(now.year + 15, year),
+        title_text = _("Due date"),
+        info_text = _("Year, month, day"),
+        ok_text = _("Set date"),
+        extra_text = parsed and _("Clear date") or nil,
+        extra_callback = parsed and function()
+            self.todos[index].due_date = ""
+            self:saveTodos()
+            date_widget:onClose()
+            self:showTaskDetails(index)
+        end or nil,
+        callback = function(date)
+            self.todos[index].due_date = string.format("%04d-%02d-%02d", date.year, date.month, date.day)
+            self:saveTodos()
+            self:showTaskDetails(index)
+        end,
+    }
+    UiManager:show(date_widget)
+end
+
 function TodoApplication:showTaskDetails(index)
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
@@ -310,9 +386,9 @@ function TodoApplication:showTaskDetails(index)
         ), half_width),
         HorizontalSpan:new{ width = field_gap },
         fieldGroup(_("Due date"), detailsField(
-            todo.due_date,
+            self:formatDueDate(todo.due_date),
             _("Add due date"),
-            function() editField(_("Edit Due Date"), "due_date", _("e.g. DD/MM/YYYY")) end,
+            function() self:editDueDate(index) end,
             half_width
         ), half_width),
     })
