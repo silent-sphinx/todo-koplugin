@@ -241,6 +241,26 @@ function TodoApplication:showTaskDetails(index)
             text_font_bold = false,
             callback = function() editField(_("Edit Description"), "description", _("Enter task description/notes")) end,
         },
+        VerticalSpan:new{width = Size.padding.large},
+        HeaderActionButton:new{
+            text = _("Remove this task"),
+            width = details_width,
+            height = Screen:scaleBySize(28),
+            padding = Screen:scaleBySize(6),
+            bordersize = 0,
+            background = Blitbuffer.COLOR_BLACK,
+            radius = 0,
+            text_font_face = "smallinfofont",
+            text_font_size = 18,
+            text_font_bold = false,
+            callback = function()
+                self:confirmRemoveCompleted(_("Remove this task?"), function()
+                    table.remove(self.todos, index)
+                    self:saveTodos()
+                    self:refreshUI()
+                end)
+            end,
+        },
     }
 
     -- Sub-tasks Header
@@ -327,25 +347,6 @@ function TodoApplication:showTaskDetails(index)
         table.insert(details_list, remove_completed_subtasks_button)
     end
 
-    local remove_task_button = HeaderActionButton:new{
-        text = _("Remove this task"),
-        height = Screen:scaleBySize(28),
-        padding = Screen:scaleBySize(6),
-        bordersize = 0,
-        background = Blitbuffer.COLOR_BLACK,
-        radius = 0,
-        text_font_face = "smallinfofont",
-        text_font_size = 18,
-        text_font_bold = false,
-        callback = function()
-            self:confirmRemoveCompleted(_("Remove this task?"), function()
-                table.remove(self.todos, index)
-                self:saveTodos()
-                self:refreshUI()
-            end)
-        end,
-    }
-
     local top_margin = Screen:scaleBySize(12)
     local details_scroll = ScrollableContainer:new{
         dimen = Geom:new{
@@ -399,13 +400,6 @@ function TodoApplication:showTaskDetails(index)
                         text = _("Task Details"),
                         face = Font:getFace("cfont"),
                         bold = true,
-                    },
-                },
-                RightContainer:new{
-                    dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
-                    HorizontalGroup:new{
-                        remove_task_button,
-                        margin_span,
                     },
                 },
             },
