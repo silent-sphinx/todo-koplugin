@@ -279,7 +279,8 @@ function TodoApplication:showTaskDetails(index)
     local screen_height = Screen:getHeight()
     local margin_span = HorizontalSpan:new{ width = Size.padding.large }
     local todo = self.todos[index]
-    local details_width = screen_width - Screen:scaleBySize(60)
+    local scrollbar_width = ScrollableContainer:getScrollbarWidth()
+    local details_width = screen_width - scrollbar_width - Screen:scaleBySize(40)
     local field_gap = Screen:scaleBySize(12)
     local half_width = math.floor((details_width - field_gap) / 2)
     local group_gap = Screen:scaleBySize(16)
@@ -507,12 +508,12 @@ function TodoApplication:showTaskDetails(index)
     local top_margin = Screen:scaleBySize(12)
     local details_scroll = ScrollableContainer:new{
         dimen = Geom:new{
-            w = screen_width - Size.padding.large,
+            w = screen_width,
             h = screen_height - Screen:scaleBySize(52) - Size.padding.large - top_margin
         },
         CenterContainer:new{
             dimen = Geom:new{
-                w = screen_width - Size.padding.large,
+                w = screen_width - scrollbar_width,
                 h = details_list:getSize().h,
             },
             details_list,
@@ -622,9 +623,10 @@ end
 function TodoApplication:createSubtaskItem(main_index, sub_index, details_width)
     local subtask = self.todos[main_index].subtasks[sub_index]
     details_width = details_width or (Screen:getWidth() - Screen:scaleBySize(60))
-    local icon_size = Screen:scaleBySize(22)
-    local icon_button_width = Screen:scaleBySize(32)
-    local check_width = details_width - icon_button_width * 2
+    local icon_size = Screen:scaleBySize(20)
+    local icon_button_width = Screen:scaleBySize(28)
+    local checkbox_width = Screen:scaleBySize(30)
+    local text_width = details_width - checkbox_width - icon_button_width * 2 - Screen:scaleBySize(8)
 
     local function iconButton(icon, callback)
         return Button:new{
@@ -642,13 +644,25 @@ function TodoApplication:createSubtaskItem(main_index, sub_index, details_width)
     local check_button
     check_button = CheckButton:new{
         checked = subtask.checked,
-        text = subtask.text,
-        single_line = true,
-        width = check_width,
-        face = Font:getFace("smallinfofont"),
-        fgcolor = subtask.checked and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK,
+        width = checkbox_width,
         callback = function()
             self.todos[main_index].subtasks[sub_index].checked = check_button.checked
+            self:saveTodos()
+            self:showTaskDetails(main_index)
+        end,
+    }
+
+    local text_button = Button:new{
+        text = subtask.text,
+        width = text_width,
+        align = "left",
+        bordersize = 0,
+        padding = Screen:scaleBySize(2),
+        text_font_face = "xx_smallinfofont",
+        text_font_size = 16,
+        text_font_bold = false,
+        callback = function()
+            self.todos[main_index].subtasks[sub_index].checked = not self.todos[main_index].subtasks[sub_index].checked
             self:saveTodos()
             self:showTaskDetails(main_index)
         end,
@@ -656,16 +670,34 @@ function TodoApplication:createSubtaskItem(main_index, sub_index, details_width)
             self:editSubtask(main_index, sub_index)
         end,
     }
+    if subtask.checked then
+        text_button.label_widget.fgcolor = Blitbuffer.COLOR_DARK_GRAY
+    end
 
-    return HorizontalGroup:new{
-        align = "center",
-        check_button,
-        iconButton("edit", function()
-            self:editSubtask(main_index, sub_index)
-        end),
-        iconButton("close", function()
-            self:removeSubtask(main_index, sub_index)
-        end),
+    local row_height = math.max(check_button:getSize().h, text_button:getSize().h, icon_button_width)
+
+    return OverlapGroup:new{
+        dimen = Geom:new{ w = details_width, h = row_height },
+        LeftContainer:new{
+            dimen = Geom:new{ w = details_width - icon_button_width * 2, h = row_height },
+            HorizontalGroup:new{
+                align = "center",
+                check_button,
+                HorizontalSpan:new{ width = Screen:scaleBySize(8) },
+                text_button,
+            },
+        },
+        RightContainer:new{
+            dimen = Geom:new{ w = details_width, h = row_height },
+            HorizontalGroup:new{
+                iconButton("edit", function()
+                    self:editSubtask(main_index, sub_index)
+                end),
+                iconButton("close", function()
+                    self:removeSubtask(main_index, sub_index)
+                end),
+            },
+        },
     }
 end
 
