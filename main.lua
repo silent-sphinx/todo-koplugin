@@ -123,22 +123,128 @@ function TodoApplication:confirmRemoveCompleted(message, callback)
     })
 end
 
+function TodoApplication:promptText(title, hint, initial, on_save)
+    local InputDialog = require("ui/widget/inputdialog")
+    local input_dialog
+    input_dialog = InputDialog:new{
+        title = title,
+        input = initial or "",
+        input_hint = hint,
+        buttons = {
+            {
+                {
+                    text = _("Cancel"),
+                    id = "close",
+                    callback = function()
+                        UiManager:close(input_dialog)
+                    end,
+                },
+                {
+                    text = _("Save"),
+                    is_enter_default = true,
+                    callback = function()
+                        local new_text = input_dialog:getInputText()
+                        UiManager:close(input_dialog)
+                        if new_text and new_text ~= "" then
+                            on_save(new_text)
+                        end
+                    end,
+                },
+            }
+        },
+    }
+    UiManager:show(input_dialog)
+    input_dialog:onShowKeyboard()
+end
+
+function TodoApplication:addSubtask(index)
+    self:promptText(_("New Sub-task"), _("Enter sub-task text"), "", function(text)
+        if not self.todos[index].subtasks then
+            self.todos[index].subtasks = {}
+        end
+        table.insert(self.todos[index].subtasks, { text = text, checked = false })
+        self:saveTodos()
+        self:showTaskDetails(index)
+    end)
+end
+
+function TodoApplication:editSubtask(main_index, sub_index)
+    local subtask = self.todos[main_index].subtasks[sub_index]
+    self:promptText(_("Edit Sub-task"), _("Enter sub-task text"), subtask.text, function(text)
+        self.todos[main_index].subtasks[sub_index].text = text
+        self:saveTodos()
+        self:showTaskDetails(main_index)
+    end)
+end
+
+function TodoApplication:removeSubtask(main_index, sub_index)
+    self:confirmRemoveCompleted(_("Remove this sub-task?"), function()
+        table.remove(self.todos[main_index].subtasks, sub_index)
+        self:saveTodos()
+        self:showTaskDetails(main_index)
+    end)
+end
+
+function TodoApplication:countSubtaskProgress(todo)
+    local total = todo.subtasks and #todo.subtasks or 0
+    local done = 0
+    if todo.subtasks then
+        for _, subtask in ipairs(todo.subtasks) do
+            if subtask.checked then
+                done = done + 1
+            end
+        end
+    end
+    return done, total
+end
+
 function TodoApplication:showTaskDetails(index)
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
     local margin_span = HorizontalSpan:new{ width = Size.padding.large }
     local todo = self.todos[index]
     local details_width = screen_width - Screen:scaleBySize(60)
+    local field_gap = Screen:scaleBySize(12)
+    local half_width = math.floor((details_width - field_gap) / 2)
+    local group_gap = Screen:scaleBySize(16)
+    local label_gap = Screen:scaleBySize(4)
 
-    local function detailsLabel(text)
+    local function detailsLabel(text, width)
+        width = width or details_width
         local label = TextWidget:new{
             text = text,
-            face = Font:getFace("cfont"),
+            face = Font:getFace("x_smallinfofont"),
             bold = true,
         }
         return LeftContainer:new{
-            dimen = Geom:new{ w = details_width, h = label:getSize().h },
+            dimen = Geom:new{ w = width, h = label:getSize().h },
             label,
+        }
+    end
+
+    local function detailsField(value, placeholder, callback, width, height)
+        local has_value = value and value ~= ""
+        return Button:new{
+            text = has_value and value or placeholder,
+            width = width or details_width,
+            height = height,
+            align = "left",
+            bordersize = Size.border.default,
+            padding_h = Screen:scaleBySize(10),
+            padding_v = Screen:scaleBySize(10),
+            text_font_face = "smallinfofont",
+            text_font_size = 18,
+            text_font_bold = false,
+            callback = callback,
+        }
+    end
+
+    local function fieldGroup(label, field_widget, width)
+        return VerticalGroup:new{
+            align = "left",
+            detailsLabel(label, width),
+            VerticalSpan:new{ width = label_gap },
+            field_widget,
         }
     end
 
@@ -185,168 +291,143 @@ function TodoApplication:showTaskDetails(index)
         input_dialog:onShowKeyboard()
     end
 
-    local details_list = VerticalGroup:new{
-        align = "center",
-        
-        detailsLabel(_("Task Name:")),
-        Button:new{
-            text = (todo.text and todo.text ~= "") and todo.text or _("[Tap to enter name]"),
-            width = details_width,
-            bordersize = 1,
-            padding = Screen:scaleBySize(10),
-            text_font_face = "smallinfofont",
-            text_font_size = 18,
-            text_font_bold = false,
-            callback = function() editField(_("Edit Name"), "text", _("Enter task name")) end,
-        },
-        VerticalSpan:new{width = Size.padding.large},
-
-        VerticalSpan:new{width = Screen:scaleBySize(4)},
-        detailsLabel(_("Category:")),
-        Button:new{
-            text = (todo.category and todo.category ~= "") and todo.category or _("[Tap to set category]"),
-            width = details_width,
-            bordersize = 1,
-            padding = Screen:scaleBySize(10),
-            text_font_face = "smallinfofont",
-            text_font_size = 18,
-            text_font_bold = false,
-            callback = function() editField(_("Edit Category"), "category", _("Enter category or group name")) end,
-        },
-        VerticalSpan:new{width = Size.padding.large},
-
-        VerticalSpan:new{width = Screen:scaleBySize(4)},
-        detailsLabel(_("Due Date:")),
-        Button:new{
-            text = (todo.due_date and todo.due_date ~= "") and todo.due_date or _("[Tap to enter due date]"),
-            width = details_width,
-            bordersize = 1,
-            padding = Screen:scaleBySize(10),
-            text_font_face = "smallinfofont",
-            text_font_size = 18,
-            text_font_bold = false,
-            callback = function() editField(_("Edit Due Date"), "due_date", _("e.g. DD/MM/YYYY")) end,
-        },
-        VerticalSpan:new{width = Size.padding.large},
-
-        VerticalSpan:new{width = Screen:scaleBySize(4)},
-        detailsLabel(_("Description / Notes:")),
-        Button:new{
-            text = (todo.description and todo.description ~= "") and todo.description or _("[Tap to enter description]"),
-            width = details_width,
-            bordersize = 1,
-            padding = Screen:scaleBySize(10),
-            text_font_face = "smallinfofont",
-            text_font_size = 18,
-            text_font_bold = false,
-            callback = function() editField(_("Edit Description"), "description", _("Enter task description/notes")) end,
-        },
-        VerticalSpan:new{width = Size.padding.large},
-        HeaderActionButton:new{
-            text = _("Remove this task"),
-            width = details_width,
-            height = Screen:scaleBySize(28),
-            padding = Screen:scaleBySize(6),
-            bordersize = 0,
-            background = Blitbuffer.COLOR_BLACK,
-            radius = 0,
-            text_font_face = "smallinfofont",
-            text_font_size = 18,
-            text_font_bold = false,
-            callback = function()
-                self:confirmRemoveCompleted(_("Remove this task?"), function()
-                    table.remove(self.todos, index)
-                    self:saveTodos()
-                    self:refreshUI()
-                end)
-            end,
-        },
-    }
-
-    -- Sub-tasks Header
-    table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
-    table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = 2 } })
-    table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
-    table.insert(details_list, detailsLabel(_("Sub-tasks:")))
-    
     if not todo.subtasks then todo.subtasks = {} end
 
-    local has_completed_subtasks = false
-    for sub_index, subtask in ipairs(todo.subtasks) do
-        has_completed_subtasks = has_completed_subtasks or subtask.checked
-        table.insert(details_list, self:createSubtaskItem(index, sub_index))
-        table.insert(details_list, VerticalSpan:new{width = Screen:scaleBySize(6)})
-        table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = 1 } })
+    local details_list = VerticalGroup:new{ align = "left" }
+
+    table.insert(details_list, fieldGroup(_("Task name"), detailsField(
+        todo.text,
+        _("Add a name"),
+        function() editField(_("Edit Name"), "text", _("Enter task name")) end
+    )))
+    table.insert(details_list, VerticalSpan:new{ width = group_gap })
+    table.insert(details_list, HorizontalGroup:new{
+        fieldGroup(_("Category"), detailsField(
+            todo.category,
+            _("Add category"),
+            function() editField(_("Edit Category"), "category", _("Enter category or group name")) end,
+            half_width
+        ), half_width),
+        HorizontalSpan:new{ width = field_gap },
+        fieldGroup(_("Due date"), detailsField(
+            todo.due_date,
+            _("Add due date"),
+            function() editField(_("Edit Due Date"), "due_date", _("e.g. DD/MM/YYYY")) end,
+            half_width
+        ), half_width),
+    })
+    table.insert(details_list, VerticalSpan:new{ width = group_gap })
+    table.insert(details_list, fieldGroup(_("Notes"), detailsField(
+        todo.description,
+        _("Add notes"),
+        function() editField(_("Edit Description"), "description", _("Enter task description/notes")) end,
+        details_width,
+        Screen:scaleBySize(72)
+    )))
+
+    local completed_count, subtask_count = self:countSubtaskProgress(todo)
+    local subtasks_heading = _("Sub-tasks")
+    if subtask_count > 0 then
+        if completed_count == subtask_count then
+            subtasks_heading = string.format("%s · %s", _("Sub-tasks"), _("All done"))
+        else
+            subtasks_heading = string.format("%s · %d/%d", _("Sub-tasks"), completed_count, subtask_count)
+        end
     end
 
-    table.insert(details_list, VerticalSpan:new{width = Screen:scaleBySize(12)})
+    table.insert(details_list, VerticalSpan:new{ width = group_gap })
+    table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = Size.line.medium } })
+    table.insert(details_list, VerticalSpan:new{ width = Screen:scaleBySize(10) })
+    table.insert(details_list, detailsLabel(subtasks_heading))
+
+    local has_completed_subtasks = completed_count > 0
+    if subtask_count == 0 then
+        table.insert(details_list, VerticalSpan:new{ width = Screen:scaleBySize(8) })
+        local empty_hint = TextWidget:new{
+            text = _("No sub-tasks yet"),
+            face = Font:getFace("x_smallinfofont"),
+        }
+        table.insert(details_list, LeftContainer:new{
+            dimen = Geom:new{ w = details_width, h = empty_hint:getSize().h },
+            empty_hint,
+        })
+    else
+        local row_pad = Screen:scaleBySize(12)
+        for sub_index, _ in ipairs(todo.subtasks) do
+            table.insert(details_list, VerticalSpan:new{ width = row_pad })
+            table.insert(details_list, self:createSubtaskItem(index, sub_index, details_width))
+            table.insert(details_list, VerticalSpan:new{ width = row_pad })
+            table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = Size.line.thin } })
+        end
+    end
+
+    table.insert(details_list, VerticalSpan:new{ width = Screen:scaleBySize(14) })
     table.insert(details_list, Button:new{
-        text = _("+ Add Sub-task"),
+        text = _("+ Add sub-task"),
         width = details_width,
-        bordersize = 1,
+        align = "left",
+        bordersize = Size.border.default,
         padding = Screen:scaleBySize(10),
         text_font_face = "smallinfofont",
         text_font_size = 18,
         text_font_bold = false,
         callback = function()
-            local InputDialog = require("ui/widget/inputdialog")
-            local input_dialog
-            input_dialog = InputDialog:new{
-                title = _("New Sub-task"),
-                input = "",
-                input_hint = _("Enter sub-task text"),
-                buttons = {
-                    {
-                        {
-                            text = _("Cancel"),
-                            id = "close",
-                            callback = function() UiManager:close(input_dialog) end,
-                        },
-                        {
-                            text = _("Save"),
-                            is_enter_default = true,
-                            callback = function()
-                                local new_text = input_dialog:getInputText()
-                                if new_text and new_text ~= "" then
-                                    table.insert(self.todos[index].subtasks, { text = new_text, checked = false })
-                                    self:saveTodos()
-                                    self:showTaskDetails(index)
-                                end
-                                UiManager:close(input_dialog)
-                            end,
-                        },
-                    }
-                },
-            }
-            UiManager:show(input_dialog)
-            input_dialog:onShowKeyboard()
+            self:addSubtask(index)
         end,
     })
 
-    local remove_completed_subtasks_button = Button:new{
-        text = _("Remove completed sub-tasks"),
+    if has_completed_subtasks then
+        table.insert(details_list, VerticalSpan:new{ width = Screen:scaleBySize(8) })
+        table.insert(details_list, Button:new{
+            text = _("Remove completed sub-tasks"),
+            width = details_width,
+            align = "left",
+            bordersize = Size.border.default,
+            padding = Screen:scaleBySize(10),
+            text_font_face = "smallinfofont",
+            text_font_size = 18,
+            text_font_bold = false,
+            callback = function()
+                self:confirmRemoveCompleted(_("Remove all completed sub-tasks?"), function()
+                    local new_subtasks = {}
+                    for _, subtask in ipairs(todo.subtasks) do
+                        if not subtask.checked then
+                            table.insert(new_subtasks, subtask)
+                        end
+                    end
+                    self.todos[index].subtasks = new_subtasks
+                    self:saveTodos()
+                    self:showTaskDetails(index)
+                end)
+            end,
+        })
+    end
+
+    table.insert(details_list, VerticalSpan:new{ width = group_gap })
+    table.insert(details_list, LineWidget:new{ dimen = Geom:new{ w = details_width, h = Size.line.medium } })
+    table.insert(details_list, VerticalSpan:new{ width = Screen:scaleBySize(10) })
+    table.insert(details_list, HeaderActionButton:new{
+        text = _("Remove this task"),
+        width = details_width,
+        height = Screen:scaleBySize(32),
+        padding = Screen:scaleBySize(8),
+        bordersize = 0,
+        background = Blitbuffer.COLOR_BLACK,
+        radius = 0,
         text_font_face = "smallinfofont",
         text_font_size = 18,
         text_font_bold = false,
         callback = function()
-            self:confirmRemoveCompleted(_("Remove all completed sub-tasks?"), function()
-                local new_subtasks = {}
-                for _, subtask in ipairs(todo.subtasks) do
-                    if not subtask.checked then
-                        table.insert(new_subtasks, subtask)
-                    end
-                end
-                self.todos[index].subtasks = new_subtasks
+            self:confirmRemoveCompleted(_("Remove this task?"), function()
+                table.remove(self.todos, index)
                 self:saveTodos()
-                self:showTaskDetails(index)
+                self:refreshUI()
             end)
         end,
-    }
-    if has_completed_subtasks then
-        table.insert(details_list, VerticalSpan:new{width = Size.padding.large})
-        table.insert(details_list, remove_completed_subtasks_button)
-    end
+    })
+    table.insert(details_list, VerticalSpan:new{ width = Screen:scaleBySize(16) })
 
+    local header_title = (todo.text and todo.text ~= "") and todo.text or _("Task Details")
     local top_margin = Screen:scaleBySize(12)
     local details_scroll = ScrollableContainer:new{
         dimen = Geom:new{
@@ -397,9 +478,10 @@ function TodoApplication:showTaskDetails(index)
                 CenterContainer:new{
                     dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
                     TextWidget:new{
-                        text = _("Task Details"),
+                        text = header_title,
                         face = Font:getFace("cfont"),
                         bold = true,
+                        max_width = screen_width - Screen:scaleBySize(160),
                     },
                 },
             },
@@ -435,8 +517,14 @@ function TodoApplication:createTodoItem(todo, index)
         width = checkbox_width,
     }
 
+    local task_label = todo.text
+    local done_count, total_count = self:countSubtaskProgress(todo)
+    if total_count > 0 then
+        task_label = string.format("%s  (%d/%d)", todo.text, done_count, total_count)
+    end
+
     local task_button = Button:new{
-        text = todo.text,
+        text = task_label,
         width = row_width,
         height = Screen:scaleBySize(42),
         align = "left",
@@ -455,86 +543,53 @@ function TodoApplication:createTodoItem(todo, index)
     }
 end
 
-function TodoApplication:createSubtaskItem(main_index, sub_index)
+function TodoApplication:createSubtaskItem(main_index, sub_index, details_width)
     local subtask = self.todos[main_index].subtasks[sub_index]
-    local details_width = Screen:getWidth() - Screen:scaleBySize(60)
-    local edit_button_width = Screen:scaleBySize(28)
+    details_width = details_width or (Screen:getWidth() - Screen:scaleBySize(60))
+    local icon_size = Screen:scaleBySize(22)
+    local icon_button_width = Screen:scaleBySize(32)
+    local check_width = details_width - icon_button_width * 2
+
+    local function iconButton(icon, callback)
+        return Button:new{
+            icon = icon,
+            icon_width = icon_size,
+            icon_height = icon_size,
+            width = icon_button_width,
+            height = icon_button_width,
+            padding = 0,
+            bordersize = 0,
+            callback = callback,
+        }
+    end
+
     local check_button
     check_button = CheckButton:new{
         checked = subtask.checked,
+        text = subtask.text,
+        single_line = true,
+        width = check_width,
+        face = Font:getFace("smallinfofont"),
+        fgcolor = subtask.checked and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK,
         callback = function()
             self.todos[main_index].subtasks[sub_index].checked = check_button.checked
             self:saveTodos()
             self:showTaskDetails(main_index)
         end,
-        width = Screen:scaleBySize(30),
-    }
-
-    local text_widget = TextWidget:new{
-        text = subtask.text,
-        face = Font:getFace("smallinfofont"),
-        max_width = details_width - Size.padding.large - Screen:scaleBySize(40) - edit_button_width,
-    }
-
-    local edit_button = Button:new{
-        icon = "edit",
-        icon_width = Screen:scaleBySize(24),
-        icon_height = Screen:scaleBySize(24),
-        width = edit_button_width,
-        height = edit_button_width,
-        padding = 0,
-        bordersize = 0,
-        callback = function()
-            local InputDialog = require("ui/widget/inputdialog")
-            local input_dialog
-            input_dialog = InputDialog:new{
-                title = _("Edit Sub-task"),
-                input = subtask.text,
-                input_hint = _("Enter sub-task text"),
-                buttons = {
-                    {
-                        {
-                            text = _("Cancel"),
-                            id = "close",
-                            callback = function() UiManager:close(input_dialog) end,
-                        },
-                        {
-                            text = _("Save"),
-                            is_enter_default = true,
-                            callback = function()
-                                local new_text = input_dialog:getInputText()
-                                if new_text and new_text ~= "" then
-                                    self.todos[main_index].subtasks[sub_index].text = new_text
-                                    self:saveTodos()
-                                    self:showTaskDetails(main_index)
-                                end
-                                UiManager:close(input_dialog)
-                            end,
-                        },
-                    }
-                },
-            }
-            UiManager:show(input_dialog)
-            input_dialog:onShowKeyboard()
+        hold_callback = function()
+            self:editSubtask(main_index, sub_index)
         end,
     }
-    local row_height = math.max(check_button:getSize().h, edit_button:getSize().h)
 
-    return OverlapGroup:new{
-        dimen = Geom:new{ w = details_width, h = row_height },
-        LeftContainer:new{
-            dimen = Geom:new{ w = details_width - edit_button_width, h = row_height },
-            HorizontalGroup:new{
-                HorizontalSpan:new{ width = Size.padding.large },
-                check_button,
-                HorizontalSpan:new{ width = Screen:scaleBySize(10) },
-                text_widget,
-            },
-        },
-        RightContainer:new{
-            dimen = Geom:new{ w = details_width, h = row_height },
-            edit_button,
-        },
+    return HorizontalGroup:new{
+        align = "center",
+        check_button,
+        iconButton("edit", function()
+            self:editSubtask(main_index, sub_index)
+        end),
+        iconButton("close", function()
+            self:removeSubtask(main_index, sub_index)
+        end),
     }
 end
 
