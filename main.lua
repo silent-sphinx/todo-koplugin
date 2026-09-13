@@ -346,10 +346,11 @@ function TodoApplication:showTaskDetails(index)
         end,
     }
 
+    local top_margin = Screen:scaleBySize(12)
     local details_scroll = ScrollableContainer:new{
         dimen = Geom:new{
             w = screen_width - Size.padding.large,
-            h = screen_height - Screen:scaleBySize(52) - Size.padding.large
+            h = screen_height - Screen:scaleBySize(52) - Size.padding.large - top_margin
         },
         CenterContainer:new{
             dimen = Geom:new{
@@ -370,6 +371,7 @@ function TodoApplication:showTaskDetails(index)
             WidgetContainer:new{ dimen = Screen:getSize() },
         },
         VerticalGroup:new{
+            VerticalSpan:new{ width = top_margin },
             OverlapGroup:new{
                 dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
                 LeftContainer:new{
@@ -671,10 +673,11 @@ function TodoApplication:showItems()
 
 
 
+    local top_margin = Screen:scaleBySize(12)
     local todo_scroll = ScrollableContainer:new{
         dimen = Geom:new{
             w = screen_width,
-            h = screen_height - Screen:scaleBySize(127)
+            h = screen_height - Screen:scaleBySize(127) - top_margin
         },
         todo_list
     }
@@ -689,6 +692,7 @@ function TodoApplication:showItems()
             WidgetContainer:new{ dimen = Screen:getSize() },
         },
         VerticalGroup:new{
+            VerticalSpan:new{ width = top_margin },
             -- Header
             OverlapGroup:new{
                 dimen = Geom:new{ w = screen_width, h = Screen:scaleBySize(50) },
